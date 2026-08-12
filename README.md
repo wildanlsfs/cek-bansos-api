@@ -36,12 +36,14 @@ This service uses browser automation with AI-powered CAPTCHA solving to provide 
     ┌────▼────────┐   │
     │  CAPTCHA    │   │
     │   Solver    ├───┘
-    └────┬────────┘
-         │
-    ┌────▼────────┐
-    │   Ollama    │
-    │ gemma4:e2b  │
-    └─────────────┘
+    └──────┬──────┘
+           │
+     ┌─────┴─────────────────┐
+     │                       │
+┌────▼────────┐   ┌──────────▼──────────┐
+│   Ollama    │   │ 9router / Custom URL │
+│ (local)     │   │ (OpenAI-compatible)  │
+└─────────────┘   └─────────────────────┘
 ```
 
 ## Prerequisites
@@ -81,11 +83,12 @@ Configure:
 API_KEY=your-secret-api-key-here
 AI_PROVIDER=ollama
 OLLAMA_URL=http://ollama:11434
+OLLAMA_MODEL=gemma4:e2b      # change to any Ollama vision model you have
 ```
 
 Start with Ollama:
 ```bash
-docker compose --profile ollama up -d
+docker compose -f docker-compose.ollama.yml up -d
 ```
 
 This will:
@@ -104,12 +107,18 @@ Configure:
 ```bash
 API_KEY=your-secret-api-key-here
 AI_PROVIDER=9router
+
+# Required
 NINEROUTER_API_KEY=your-9router-api-key-here
+
+# Optional — customize endpoint and model
+NINEROUTER_URL=https://api.9router.com      # or your own proxy URL
+NINEROUTER_MODEL=gemma4:e2b                 # any vision model your endpoint supports
 ```
 
 Start API only (no Ollama needed):
 ```bash
-docker compose up -d api
+docker compose -f docker-compose.9router.yml up -d
 ```
 
 **Get 9router API key:** https://9router.com
@@ -272,70 +281,89 @@ Source: Data Tunggal Sosial dan Ekonomi Nasional (DTSEN)
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `API_KEY` | Bearer token for API authentication | (required) |
-| `OLLAMA_URL` | URL of Ollama service | `http://ollama:11434` |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `API_KEY` | Yes | — | Bearer token for API authentication |
+| `AI_PROVIDER` | No | `ollama` | AI backend: `ollama` or `9router` |
+| `OLLAMA_URL` | No | `http://ollama:11434` | Ollama server base URL |
+| `OLLAMA_MODEL` | No | `gemma4:e2b` | Any vision-capable Ollama model |
+| `NINEROUTER_API_KEY` | If 9router | — | Your 9router API key |
+| `NINEROUTER_URL` | No | `https://api.9router.com` | 9router (or compatible) base URL — bring your own proxy |
+| `NINEROUTER_MODEL` | No | `gemma4:e2b` | Any vision model supported by your endpoint |
 
-### Docker Compose Services
+### Using a Custom OpenAI-Compatible Endpoint
 
-| Service | Port | Description |
-|---------|------|-------------|
-| `ollama` | 11434 | Ollama AI service for CAPTCHA solving |
-| `model-downloader` | - | One-time service to download gemma4:e2b |
-| `api` | 8000 | FastAPI application |
+`NINEROUTER_URL` accepts any OpenAI-compatible base URL, not just 9router.
+The service appends `/v1/chat/completions` automatically.
+
+```bash
+# 9router (default)
+NINEROUTER_URL=https://api.9router.com
+
+# Self-hosted LiteLLM proxy
+NINEROUTER_URL=http://my-litellm-server:4000
+
+# Any other OpenAI-compatible proxy
+NINEROUTER_URL=https://my-custom-proxy.example.com
+```
+
+### Changing the Model
+
+You can use any vision-capable model available on your endpoint:
+
+```bash
+# Ollama examples
+OLLAMA_MODEL=gemma4:e2b
+OLLAMA_MODEL=qwen2.5vl:3b
+OLLAMA_MODEL=llava:7b
+
+# 9router / OpenAI-compatible examples
+NINEROUTER_MODEL=gemma4:e2b
+NINEROUTER_MODEL=gpt-4o
+NINEROUTER_MODEL=qwen2.5vl:3b
+```
+
+### Docker Compose Files
+
+| File | Services | Use for |
+|------|----------|---------|
+| `docker-compose.ollama.yml` | ollama, model-downloader, api | Local Ollama deployment |
+| `docker-compose.9router.yml` | api | 9router / custom proxy deployment |
+| `docker-compose.yml` | api | Generic / legacy |
 
 ## Troubleshooting
 
 ### Services won't start
 
 ```bash
-# Check Docker logs
-docker-compose logs
-
-# Restart services
-docker-compose down
-docker-compose up -d
+docker compose -f docker-compose.ollama.yml logs
+docker compose -f docker-compose.ollama.yml down
+docker compose -f docker-compose.ollama.yml up -d
 ```
 
 ### Model download failed
 
 ```bash
-# Manually pull the model
-docker-compose exec ollama ollama pull gemma4:e2b
-
-# Or restart the model-downloader service
-docker-compose up model-downloader
+docker compose -f docker-compose.ollama.yml exec ollama ollama pull gemma4:e2b
 ```
 
 ### CAPTCHA solving fails
 
-The service will automatically retry up to 3 times. If CAPTCHA accuracy is low:
+The service retries up to 3 times automatically. If accuracy is low:
 
-1. Check Ollama service is running: `docker-compose logs ollama`
-2. Verify model is downloaded: `docker-compose exec ollama ollama list`
-3. The CAPTCHA prompt in `app/captcha.py` can be tuned for better accuracy
+1. Try a larger/better vision model via `OLLAMA_MODEL` or `NINEROUTER_MODEL`
+2. For 9router: verify your `NINEROUTER_URL` and `NINEROUTER_API_KEY`
+3. Check API logs: `docker compose -f docker-compose.ollama.yml logs api`
 
 ### Browser automation fails
 
 ```bash
-# Check API logs
-docker-compose logs api
-
-# Restart API service
-docker-compose restart api
+docker compose -f docker-compose.ollama.yml restart api
 ```
 
 ### Out of memory
 
-Ollama with gemma4:e2b requires ~4GB RAM. If running low on memory:
-
-```bash
-# Check resource usage
-docker stats
-
-# Increase Docker memory limit in Docker Desktop settings
-```
+Ollama with gemma4:e2b requires ~4GB RAM. Increase Docker memory limit in Docker Desktop settings or switch to `AI_PROVIDER=9router`.
 
 ## Development
 
@@ -369,14 +397,16 @@ uvicorn app.main:app --reload
 cek-bansos-api/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py           # FastAPI application
-│   ├── auth.py           # API key authentication
-│   ├── browser.py        # Browser automation logic
-│   └── captcha.py        # CAPTCHA solving with Ollama
-├── docker-compose.yml    # Docker Compose configuration
-├── Dockerfile            # API service container
-├── requirements.txt      # Python dependencies
-├── .env.example          # Environment variables template
+│   ├── main.py                    # FastAPI application
+│   ├── auth.py                    # API key authentication
+│   ├── browser.py                 # Browser automation logic
+│   └── captcha.py                 # CAPTCHA solver (Ollama + 9router/custom)
+├── docker-compose.ollama.yml      # Local Ollama deployment
+├── docker-compose.9router.yml     # 9router / custom proxy deployment
+├── docker-compose.yml             # Generic / legacy
+├── Dockerfile                     # API service container
+├── requirements.txt               # Python dependencies
+├── .env.example                   # Environment variables template
 ├── .gitignore
 └── README.md
 ```

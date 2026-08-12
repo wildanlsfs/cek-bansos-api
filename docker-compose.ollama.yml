@@ -50,6 +50,7 @@ services:
       - API_KEY=${API_KEY}
       - AI_PROVIDER=ollama
       - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma4:e2b}
     restart: unless-stopped
 
 volumes:

@@ -12,4 +12,6 @@ services:
       - API_KEY=${API_KEY}
       - AI_PROVIDER=9router
       - NINEROUTER_API_KEY=${NINEROUTER_API_KEY}
+      - NINEROUTER_URL=${NINEROUTER_URL:-https://api.9router.com}
+      - NINEROUTER_MODEL=${NINEROUTER_MODEL:-gemma4:e2b}
     restart: unless-stopped
