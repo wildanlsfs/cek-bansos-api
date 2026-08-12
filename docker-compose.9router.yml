@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cek-bansos-api
+    ports:
+      - "8000:8000"
+    environment:
+      - API_KEY=${API_KEY}
+      - AI_PROVIDER=9router
+      - NINEROUTER_API_KEY=${NINEROUTER_API_KEY}
+    restart: unless-stopped

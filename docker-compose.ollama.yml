@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cek-bansos-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  model-downloader:
+    image: ollama/ollama:latest
+    container_name: cek-bansos-model-downloader
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    command: >
+      sh -c "
+        echo 'Waiting for Ollama to be ready...' &&
+        sleep 5 &&
+        echo 'Pulling gemma4:e2b model (~7GB, may take 10-15 minutes)...' &&
+        ollama pull gemma4:e2b &&
+        echo 'Model downloaded successfully!'
+      "
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cek-bansos-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+      model-downloader:
+        condition: service_completed_successfully
+    environment:
+      - API_KEY=${API_KEY}
+      - AI_PROVIDER=ollama
+      - OLLAMA_URL=http://ollama:11434
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
