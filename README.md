@@ -171,16 +171,27 @@ Authorization: Bearer <your-api-key>
   "status": "success",
   "nik": "1234567890123456",
   "data": {
-    "nama": "John Doe",
-    "nik": "1234567890123456",
-    "alamat": "Jl. Example No. 123",
-    "desa_kelurahan": "Kelurahan Example",
-    "kecamatan": "Kecamatan Example",
-    "kabupaten_kota": "Kota Example",
-    "provinsi": "Provinsi Example",
-    "desil": "3",
+    "nama": "W****N L***I S******I F*****S",
+    "desil": "BELUM ADA DESIL",
+    "sembako": { "status": "TIDAK", "periode": "-" },
+    "pkh": { "status": "TIDAK", "periode": "-" },
+    "pbijk": { "status": "TIDAK", "periode": "-" },
+    "status_kpd": "TIDAK",
     "raw_html": "..."
   }
+}
+```
+
+**Not Found (200):**
+
+When the NIK is found but is not registered as a bansos recipient, the API returns `status: "not_found"` with the raw result table.
+
+```json
+{
+  "status": "not_found",
+  "nik": "1234567890123456",
+  "message": "NIK tidak ditemukan pada data penerima manfaat bansos",
+  "data": {}
 }
 ```
 
@@ -294,7 +305,24 @@ Source: Data Tunggal Sosial dan Ekonomi Nasional (DTSEN)
 ### Using a Custom OpenAI-Compatible Endpoint
 
 `NINEROUTER_URL` accepts any OpenAI-compatible base URL, not just 9router.
-The service appends `/v1/chat/completions` automatically.
+The service appends `/v1/chat/completions` automatically. Both forms work:
+
+```
+# Omit /v1 (auto-appended)
+NINEROUTER_URL=https://9router.ruangpelaut.com
+
+# Or include it
+NINEROUTER_URL=https://9router.ruangpelaut.com/v1
+```
+
+Example for a proxy model (e.g. `ollama/gemma4` on a 9router-compatible gateway):
+
+```
+AI_PROVIDER=9router
+NINEROUTER_URL=https://9router.ruangpelaut.com/v1
+NINEROUTER_API_KEY=sk-xxxxx
+NINEROUTER_MODEL=ollama/gemma4
+```
 
 ```bash
 # 9router (default)

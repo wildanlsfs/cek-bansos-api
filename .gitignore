@@ -20,3 +20,4 @@ venv.bak/
 .vscode/
 *.sqlite
 *.db
+server.pid

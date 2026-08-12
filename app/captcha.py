@@ -50,7 +50,8 @@ def solve_captcha_9router(image_path: str, api_key: str, base_url: str, model: s
             }
         ],
         "max_tokens": 50,
-        "temperature": 0.1
+        "temperature": 0.1,
+        "stream": False
     }
 
     headers = {
@@ -58,7 +59,10 @@ def solve_captcha_9router(image_path: str, api_key: str, base_url: str, model: s
         "Content-Type": "application/json"
     }
 
-    endpoint = base_url.rstrip("/") + "/v1/chat/completions"
+    endpoint = base_url.rstrip("/")
+    if not endpoint.endswith("/v1"):
+        endpoint += "/v1"
+    endpoint += "/chat/completions"
 
     response = requests.post(
         endpoint,
