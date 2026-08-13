@@ -402,11 +402,11 @@ Ollama with gemma4:e2b requires ~4GB RAM. Increase Docker memory limit in Docker
 python3 -m venv venv
 source venv/bin/activate
 
-# Install dependencies
+# Install dependencies (includes the browser-use CLI)
 pip install -r requirements.txt
 
-# Install browser-use CLI
-pip install browser-use
+# Download the Chromium build the browser-use CLI drives
+browser-use install
 
 # Set environment variables
 export API_KEY=test-key

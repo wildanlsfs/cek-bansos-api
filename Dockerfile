@@ -34,6 +34,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# browser-use CLI manages its own Chromium build (via Playwright) rather than
+# using the system chromium package above; this step downloads it + any
+# remaining OS-level deps, so it must run once at build time.
+RUN browser-use install
+
 COPY app/ ./app/
 
 EXPOSE 8000
