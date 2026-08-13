@@ -6,9 +6,46 @@ import re
 logger = logging.getLogger(__name__)
 
 
+def _patch_markdown_strip():
+    """Monkey-patch browser-use ChatOpenAI.ainvoke to strip markdown from model responses."""
+    from browser_use.llm.openai import chat as _m
+
+    _orig = _m.ChatOpenAI.ainvoke
+
+    async def _patched(self, messages, output_format=None, **kwargs):
+        if output_format is None:
+            return await _orig(self, messages, output_format, **kwargs)
+
+        _orig_validate = output_format.__dict__.get('model_validate_json')
+        _cls_validate = output_format.model_validate_json
+
+        @classmethod  # type: ignore[misc]
+        def _strip_validate(cls, data, *args, **kw):
+            if isinstance(data, str):
+                s = data.strip()
+                if s.startswith('`'):
+                    s = re.sub(r'^`{1,3}(?:json)?\s*\n?', '', s)
+                    s = re.sub(r'\n?`{1,3}\s*$', '', s)
+                    data = s.strip()
+            return _cls_validate.__func__(cls, data, *args, **kw)
+
+        output_format.model_validate_json = _strip_validate
+        try:
+            return await _orig(self, messages, output_format, **kwargs)
+        finally:
+            if _orig_validate is not None:
+                output_format.model_validate_json = _orig_validate
+            else:
+                del output_format.model_validate_json
+
+    _m.ChatOpenAI.ainvoke = _patched
+
+
+_patch_markdown_strip()
+
+
 def _make_llm():
     from browser_use.llm.openai.like import ChatOpenAILike
-    from browser_use.llm.openai.chat import ChatOpenAI
 
     provider = os.getenv("AI_PROVIDER", "ollama").lower()
 
@@ -16,16 +53,22 @@ def _make_llm():
         api_key = os.getenv("NINEROUTER_API_KEY", "nokey")
         base_url = os.getenv("NINEROUTER_URL", "https://api.9router.com").rstrip("/")
         model = os.getenv("NINEROUTER_MODEL", "gemma4:e2b")
-        if not base_url.endswith("/v1"):
-            base_url += "/v1"
-        return ChatOpenAILike(model=model, api_key=api_key, base_url=base_url)
     else:
         api_key = "ollama"
         base_url = os.getenv("OLLAMA_URL", "http://ollama:11434").rstrip("/")
         model = os.getenv("OLLAMA_MODEL", "gemma4:e2b")
-        if not base_url.endswith("/v1"):
-            base_url += "/v1"
-        return ChatOpenAILike(model=model, api_key=api_key, base_url=base_url)
+
+    if not base_url.endswith("/v1"):
+        base_url += "/v1"
+
+    return ChatOpenAILike(
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+        add_schema_to_system_prompt=True,
+        remove_min_items_from_schema=True,
+        remove_defaults_from_schema=True,
+    )
 
 
 TASK_TEMPLATE = """
@@ -46,6 +89,10 @@ When done, extract data and output ONLY valid JSON — no explanation, no markdo
 - If captcha keeps failing: {{"status":"captcha_failed"}}
 """
 
+NO_MARKDOWN_INSTRUCTION = (
+    "\nCRITICAL: Output ONLY raw JSON — never use markdown, code blocks, or backticks."
+)
+
 
 async def _run_agent(nik: str) -> dict:
     from browser_use import Agent
@@ -60,10 +107,11 @@ async def _run_agent(nik: str) -> dict:
         llm=llm,
         browser_session=session,
         use_vision=True,
-        max_failures=3,
+        max_failures=5,
+        extend_system_message=NO_MARKDOWN_INSTRUCTION,
     )
 
-    history = await agent.run(max_steps=20)
+    history = await agent.run(max_steps=25)
 
     raw = history.final_result()
     if not raw:
