@@ -34,10 +34,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# browser-use CLI manages its own Chromium build (via Playwright) rather than
-# using the system chromium package above; this step downloads it + any
-# remaining OS-level deps, so it must run once at build time.
-RUN browser-use install
+# Pre-cache chromedriver so it's available offline at runtime
+RUN python3 -c "from webdriver_manager.chrome import ChromeDriverManager; ChromeDriverManager().install()" 2>&1 || true
 
 COPY app/ ./app/
 

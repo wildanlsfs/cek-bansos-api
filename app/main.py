@@ -41,7 +41,7 @@ async def check_nik(
     api_key: str = Depends(verify_api_key)
 ):
     try:
-        result = check_nik_bansos(request.nik)
+        result = await check_nik_bansos(request.nik)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
